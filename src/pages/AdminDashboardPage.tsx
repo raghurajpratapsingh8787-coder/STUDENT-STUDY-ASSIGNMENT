@@ -117,7 +117,9 @@ export function AdminDashboardPage() {
     try {
       await apiRequest(`/api/admin/users/${u.id}`, { method: 'DELETE' });
       setUsers((prev) => prev.filter((item) => item.id !== u.id));
+      setDocuments((prev) => prev.filter((d) => d.ownerEmail !== u.email));
       notify(`Removed account for ${u.email}.`, 'info');
+      void loadAdminData();
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Could not delete user.', 'error');
     }

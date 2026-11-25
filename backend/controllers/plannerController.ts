@@ -2,7 +2,12 @@ import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../middleware/auth.ts';
 import type { TaskPriority } from '../models/StudyTask.ts';
 import { dbStore } from '../utils/store.ts';
-import { asCleanString, asPositiveInt } from '../utils/validation.ts';
+import {
+  asCleanString,
+  asPositiveInt,
+  asValidDateString,
+  asValidTimeString,
+} from '../utils/validation.ts';
 
 export async function listTasks(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
@@ -26,8 +31,11 @@ export async function createTask(req: AuthenticatedRequest, res: Response): Prom
 
     const subject = asCleanString(req.body?.subject, 80);
     const topic = asCleanString(req.body?.topic, 200);
-    const scheduledDate = asCleanString(req.body?.scheduledDate, 20) || new Date().toISOString().slice(0, 10);
-    const startTime = asCleanString(req.body?.startTime, 10) || '09:00';
+    const scheduledDate = asValidDateString(
+      req.body?.scheduledDate,
+      new Date().toISOString().slice(0, 10)
+    );
+    const startTime = asValidTimeString(req.body?.startTime, '09:00');
     const durationMinutes = asPositiveInt(req.body?.durationMinutes, 5, 480, 45);
     const priority: TaskPriority =
       req.body?.priority === 'High' || req.body?.priority === 'Low'
@@ -80,10 +88,20 @@ export async function updateTask(req: AuthenticatedRequest, res: Response): Prom
       patch.topic = asCleanString(req.body.topic, 200);
     }
     if (typeof req.body?.scheduledDate === 'string' && req.body.scheduledDate.trim()) {
-      patch.scheduledDate = asCleanString(req.body.scheduledDate, 20);
+      const validDate = asValidDateString(req.body.scheduledDate, '');
+      if (!validDate) {
+        res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD.' });
+        return;
+      }
+      patch.scheduledDate = validDate;
     }
     if (typeof req.body?.startTime === 'string' && req.body.startTime.trim()) {
-      patch.startTime = asCleanString(req.body.startTime, 10);
+      const validTime = asValidTimeString(req.body.startTime, '');
+      if (!validTime) {
+        res.status(400).json({ error: 'Invalid time format. Expected HH:MM.' });
+        return;
+      }
+      patch.startTime = validTime;
     }
     if (req.body?.durationMinutes !== undefined) {
       patch.durationMinutes = asPositiveInt(req.body.durationMinutes, 5, 480, 45);

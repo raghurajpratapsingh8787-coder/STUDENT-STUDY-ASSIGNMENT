@@ -188,6 +188,41 @@ export const dbStore = {
       }
       return false;
     },
+
+    async purgeOwnedData(userId: string): Promise<string[]> {
+      if (isMongoConnected()) {
+        if (!mongoose.Types.ObjectId.isValid(userId)) return [];
+        const docs = await DocumentModel.find({ userId }).select('storedFilename').lean();
+        const storedFilenames = docs
+          .map((d) => d.storedFilename)
+          .filter((name): name is string => typeof name === 'string' && name.length > 0);
+        await Promise.all([
+          DocumentModel.deleteMany({ userId }),
+          ChatModel.deleteMany({ userId }),
+          MessageModel.deleteMany({ userId }),
+          GeneratedNotesModel.deleteMany({ userId }),
+          QuizModel.deleteMany({ userId }),
+          QuizResultModel.deleteMany({ userId }),
+          StudyTaskModel.deleteMany({ userId }),
+        ]);
+        return storedFilenames;
+      }
+
+      const db = loadLocalDb();
+      const storedFilenames = db.documents
+        .filter((d) => d.userId === userId)
+        .map((d) => d.storedFilename)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0);
+      db.documents = db.documents.filter((d) => d.userId !== userId);
+      db.chats = db.chats.filter((c) => c.userId !== userId);
+      db.messages = db.messages.filter((m) => m.userId !== userId);
+      db.notes = db.notes.filter((n) => n.userId !== userId);
+      db.quizzes = db.quizzes.filter((q) => q.userId !== userId);
+      db.quizResults = db.quizResults.filter((r) => r.userId !== userId);
+      db.studyTasks = db.studyTasks.filter((t) => t.userId !== userId);
+      saveLocalDb();
+      return storedFilenames;
+    },
   },
 
   chats: {

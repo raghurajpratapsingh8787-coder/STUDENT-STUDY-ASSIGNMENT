@@ -96,15 +96,27 @@ export async function updateUserAccount(req: AuthenticatedRequest, res: Response
     }
 
     const patch: Record<string, unknown> = {};
+    let shouldRevokeSessions = false;
+
     if (typeof req.body?.isActive === 'boolean') {
       patch.isActive = req.body.isActive;
+      if (req.body.isActive === false) {
+        shouldRevokeSessions = true;
+      }
     }
     if (req.body?.role === 'student' || req.body?.role === 'admin') {
       if (req.user && target._id === req.user._id && req.body.role !== 'admin') {
         res.status(400).json({ error: 'You cannot revoke your own administrator role.' });
         return;
       }
+      if (req.body.role !== target.role) {
+        shouldRevokeSessions = true;
+      }
       patch.role = req.body.role;
+    }
+
+    if (shouldRevokeSessions) {
+      patch.tokenVersion = (target.tokenVersion ?? 0) + 1;
     }
 
     let issuedResetCode: string | undefined;
@@ -154,7 +166,15 @@ export async function deleteUserAccount(req: AuthenticatedRequest, res: Response
       return;
     }
 
-    res.json({ message: 'User account deleted.' });
+    const storedFilenames = await dbStore.users.purgeOwnedData(targetId);
+    for (const filename of storedFilenames) {
+      const safePath = resolveSafeUploadPath(filename);
+      if (safePath && fs.existsSync(safePath)) {
+        fs.unlinkSync(safePath);
+      }
+    }
+
+    res.json({ message: 'User account and associated study data deleted.' });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete user.' });
   }

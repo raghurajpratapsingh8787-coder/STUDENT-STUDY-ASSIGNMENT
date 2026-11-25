@@ -35,7 +35,23 @@ export async function getAdminSetupStatus(_req: Request, res: Response): Promise
   }
 }
 
+let adminClaimInFlight = false;
+
+function timingSafeMatches(provided: string, expected: string): boolean {
+  const providedHash = crypto.createHash('sha256').update(provided).digest();
+  const expectedHash = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(providedHash, expectedHash);
+}
+
 export async function claimAdminWorkspace(req: Request, res: Response): Promise<void> {
+  if (adminClaimInFlight) {
+    res.status(409).json({
+      error: 'Administrator setup is currently in progress. Please wait a moment.',
+    });
+    return;
+  }
+
+  adminClaimInFlight = true;
   try {
     const adminCount = await dbStore.users.countByRole('admin');
     if (adminCount > 0) {
@@ -50,7 +66,7 @@ export async function claimAdminWorkspace(req: Request, res: Response): Promise<
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     const passcode = typeof req.body?.passcode === 'string' ? req.body.passcode : '';
 
-    if (env.adminPasscode && passcode !== env.adminPasscode) {
+    if (env.adminPasscode && !timingSafeMatches(passcode, env.adminPasscode)) {
       res.status(403).json({ error: 'Invalid administrator setup passcode.' });
       return;
     }
@@ -70,6 +86,14 @@ export async function claimAdminWorkspace(req: Request, res: Response): Promise<
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const recheckCount = await dbStore.users.countByRole('admin');
+    if (recheckCount > 0) {
+      res.status(409).json({
+        error: 'An administrator account has already been claimed. Please sign in normally.',
+      });
+      return;
+    }
+
     const admin = await dbStore.users.create({
       name,
       email,
@@ -83,6 +107,7 @@ export async function claimAdminWorkspace(req: Request, res: Response): Promise<
       resetRequestedAt: null,
       resetTokenHash: null,
       resetTokenExpires: null,
+      tokenVersion: 0,
       lastActiveAt: new Date(),
     });
 
@@ -90,6 +115,8 @@ export async function claimAdminWorkspace(req: Request, res: Response): Promise<
     res.status(201).json({ token, user: sanitizeUser(admin) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Admin setup failed.' });
+  } finally {
+    adminClaimInFlight = false;
   }
 }
 
@@ -135,6 +162,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       resetRequestedAt: null,
       resetTokenHash: null,
       resetTokenExpires: null,
+      tokenVersion: 0,
       lastActiveAt: new Date(),
     });
 
@@ -249,6 +277,7 @@ export async function confirmPasswordReset(req: Request, res: Response): Promise
       resetRequestedAt: null,
       resetTokenHash: null,
       resetTokenExpires: null,
+      tokenVersion: (user.tokenVersion ?? 0) + 1,
     });
 
     res.json({ message: 'Password updated successfully. You may now sign in.' });
@@ -325,8 +354,14 @@ export async function changePassword(req: AuthenticatedRequest, res: Response): 
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await dbStore.users.updateById(req.user._id, { passwordHash });
-    res.json({ message: 'Password updated successfully.' });
+    const nextTokenVersion = (req.user.tokenVersion ?? 0) + 1;
+    const updated =
+      (await dbStore.users.updateById(req.user._id, {
+        passwordHash,
+        tokenVersion: nextTokenVersion,
+      })) || { ...req.user, tokenVersion: nextTokenVersion };
+    const token = signAuthToken(updated);
+    res.json({ message: 'Password updated successfully.', token });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Password update failed.' });
   }

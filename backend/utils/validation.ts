@@ -18,6 +18,18 @@ export function asPositiveInt(value: unknown, min: number, max: number, fallback
   return Math.max(min, Math.min(max, rounded));
 }
 
+export function asValidDateString(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : fallback;
+}
+
+export function asValidTimeString(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed) ? trimmed : fallback;
+}
+
 export function resolveSafeUploadPath(filename: string): string | null {
   const uploadsDir = path.resolve(process.cwd(), 'uploads');
   const safeBase = path.basename(filename);

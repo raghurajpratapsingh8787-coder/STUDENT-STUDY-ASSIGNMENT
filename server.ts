@@ -73,8 +73,16 @@ async function startServer() {
     }
 
     if (req.path.startsWith('/api')) {
-      const message = err instanceof Error ? err.message : 'Internal server error.';
-      res.status(400).json({ error: message });
+      if (err instanceof SyntaxError && 'body' in err) {
+        res.status(400).json({ error: 'Invalid JSON request body.' });
+        return;
+      }
+      if (err instanceof Error && err.message === 'Only valid PDF files (.pdf) are allowed.') {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      console.error('[Student Study Assistant] Unhandled API error:', err);
+      res.status(500).json({ error: 'Internal server error.' });
       return;
     }
 

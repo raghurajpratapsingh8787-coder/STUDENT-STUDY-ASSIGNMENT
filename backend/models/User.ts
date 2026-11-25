@@ -16,6 +16,7 @@ export interface IUser {
   resetRequestedAt?: Date | null;
   resetTokenHash?: string | null;
   resetTokenExpires?: Date | null;
+  tokenVersion?: number;
   lastActiveAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +38,7 @@ const UserSchema = new Schema<IUserDoc>(
     resetRequestedAt: { type: Date, default: null },
     resetTokenHash: { type: String, default: null },
     resetTokenExpires: { type: Date, default: null },
+    tokenVersion: { type: Number, default: 0 },
     lastActiveAt: { type: Date, default: () => new Date() },
   },
   { timestamps: true }

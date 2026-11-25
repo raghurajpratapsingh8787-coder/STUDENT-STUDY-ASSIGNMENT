@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { KeyRound, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { apiRequest } from '../services/api';
+import { apiRequest, setAuthToken } from '../services/api';
 import type { UserProfile } from '../types';
 
 export function ProfilePage() {
@@ -40,10 +40,13 @@ export function ProfilePage() {
     e.preventDefault();
     setSavingPassword(true);
     try {
-      const res = await apiRequest<{ message: string }>('/api/auth/password', {
+      const res = await apiRequest<{ message: string; token?: string }>('/api/auth/password', {
         method: 'PUT',
         body: JSON.stringify({ currentPassword, newPassword }),
       });
+      if (res.token) {
+        setAuthToken(res.token);
+      }
       setCurrentPassword('');
       setNewPassword('');
       notify(res.message, 'success');

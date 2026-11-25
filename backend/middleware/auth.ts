@@ -11,12 +11,14 @@ export interface AuthenticatedRequest extends Request {
 interface TokenPayload {
   userId: string;
   role: 'student' | 'admin';
+  tokenVersion?: number;
 }
 
 export function signAuthToken(user: IUser): string {
   const payload: TokenPayload = {
     userId: user._id,
     role: user.role,
+    tokenVersion: user.tokenVersion ?? 0,
   };
   return jwt.sign(payload, env.jwtSecret, { expiresIn: '7d' });
 }
@@ -43,6 +45,11 @@ export async function requireAuth(
     const user = await dbStore.users.findById(decoded.userId);
     if (!user) {
       res.status(401).json({ error: 'Account not found. Please sign in again.' });
+      return;
+    }
+
+    if ((decoded.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
+      res.status(401).json({ error: 'Session expired. Please sign in again.' });
       return;
     }
 
