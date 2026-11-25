@@ -1,0 +1,8 @@
+{
+  "name": "AI-BASED STUDENT STUDY ASSISTANT",
+  "description": "AI-based student study assistant with PDF analysis, intelligent tutoring chat, adaptive quizzes, structured notes, and study planning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
